@@ -1,0 +1,121 @@
+// ════════════════════════════════════════════════════
+// AUTOCOM WAY — Workbook Digital
+// Proyecto independiente — NO mezclar con otros scripts
+// Sheet ID: 1n4TeeqTlnRliTuXDFasGJQdtCCuKlYzpq5VqspJmtho
+// ════════════════════════════════════════════════════
+
+const SHEET_ID = '1n4TeeqTlnRliTuXDFasGJQdtCCuKlYzpq5VqspJmtho';
+const TAB_NAME  = 'Workbook';
+
+const COLS = {
+  email:1, nombre:2, ultima_sesion:3, seccion:4, completadas:5,
+  s1_q1:6, s1_q2:7, s1_q3:8,
+  s2_q1:9, s2_q2:10,
+  s3_q1:11, s3_q2:12,
+  s4_tabla:13,
+  s5_radio:14, s5_q1:15,
+  s6_q1:16,
+  s7_indicadores:17, s7_scp:18, s7_sma:19,
+  s7_gerencia:20, s7_riesgos:21, s7_contra:22,
+  s8_q1:23, s8_q2:24, s8_q3:25, s8_q4:26,
+  c1:27, c2:28, c3:29, c4:30
+};
+const TOTAL = 30;
+
+// ── Servir el HTML ────────────────────────────────
+function doGet(e) {
+  return HtmlService
+    .createHtmlOutputFromFile('index')
+    .setTitle('Workbook Digital — AUTOCOM WAY')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
+}
+
+// ── Obtener email del usuario ─────────────────────
+function getEmail() {
+  try {
+    return Session.getActiveUser().getEmail() || '';
+  } catch(e) { return ''; }
+}
+
+// ── Inicializar hoja ──────────────────────────────
+function initSheet() {
+  const ss    = SpreadsheetApp.openById(SHEET_ID);
+  let   sheet = ss.getSheetByName(TAB_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(TAB_NAME);
+    const h = new Array(TOTAL).fill('');
+    Object.entries(COLS).forEach(([k,c]) => h[c-1] = k);
+    sheet.getRange(1,1,1,TOTAL).setValues([h])
+      .setBackground('#141826').setFontColor('#fff').setFontWeight('bold');
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidth(1,220); sheet.setColumnWidth(2,160); sheet.setColumnWidth(3,180);
+  }
+  return sheet;
+}
+
+// ── Buscar fila del participante ──────────────────
+function findRow(sheet, email) {
+  const last = sheet.getLastRow();
+  if (last < 2) return -1;
+  const vals = sheet.getRange(2,1,last-1,1).getValues();
+  for (let i=0; i<vals.length; i++) {
+    if (vals[i][0] === email) return i+2;
+  }
+  return -1;
+}
+
+// ── GUARDAR ───────────────────────────────────────
+function guardar(payload) {
+  try {
+    const sheet  = initSheet();
+    const email  = payload.email || getEmail() || 'sin-email@autocom.mx';
+    const nombre = payload.nombre || email.split('@')[0];
+    const ahora  = Utilities.formatDate(new Date(), 'America/Mexico_City', 'dd/MM/yyyy HH:mm:ss');
+
+    let rowNum = findRow(sheet, email);
+    if (rowNum === -1) {
+      sheet.appendRow(new Array(TOTAL).fill(''));
+      rowNum = sheet.getLastRow();
+    }
+
+    const row = sheet.getRange(rowNum,1,1,TOTAL).getValues()[0];
+    row[COLS.email         -1] = email;
+    row[COLS.nombre        -1] = nombre;
+    row[COLS.ultima_sesion -1] = ahora;
+    row[COLS.seccion       -1] = payload.seccion       || '';
+    row[COLS.completadas   -1] = payload.completadas   || '';
+
+    ['s1_q1','s1_q2','s1_q3','s2_q1','s2_q2','s3_q1','s3_q2',
+     's4_tabla','s5_radio','s5_q1','s6_q1',
+     's7_indicadores','s7_scp','s7_sma','s7_gerencia','s7_riesgos','s7_contra',
+     's8_q1','s8_q2','s8_q3','s8_q4','c1','c2','c3','c4'
+    ].forEach(f => { if (payload[f] !== undefined) row[COLS[f]-1] = payload[f]; });
+
+    sheet.getRange(rowNum,1,1,TOTAL).setValues([row]);
+    return { ok:true, email:email };
+  } catch(e) {
+    return { ok:false, error:e.toString() };
+  }
+}
+
+// ── CARGAR ────────────────────────────────────────
+function cargar() {
+  try {
+    const sheet  = initSheet();
+    const email  = getEmail();
+    if (!email) return { ok:true, found:false };
+
+    const rowNum = findRow(sheet, email);
+    if (rowNum === -1) return { ok:true, found:false, email:email };
+
+    const row  = sheet.getRange(rowNum,1,1,TOTAL).getValues()[0];
+    const data = { ok:true, found:true, email:email };
+    Object.entries(COLS).forEach(([k,c]) => {
+      data[k] = row[c-1] !== null && row[c-1] !== undefined ? String(row[c-1]) : '';
+    });
+    return data;
+  } catch(e) {
+    return { ok:false, error:e.toString() };
+  }
+}
